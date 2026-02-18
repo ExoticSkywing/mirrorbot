@@ -48,7 +48,7 @@ from ..telegram_helper.message_utils import (
     update_status_message,
     delete_message,
 )
-from ...core.mltb_client import TgClient
+from ...core.telegram_manager import TgClient
 
 
 class TaskListener(TaskConfig):
