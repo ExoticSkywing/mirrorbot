@@ -8,7 +8,7 @@ from ..helper.ext_utils.membership_utils import check_membership as _pv_check
 from ..modules.direct_link_handler import handle_direct_message
 from ..helper.telegram_helper.bot_commands import BotCommands
 from ..helper.telegram_helper.filters import CustomFilters
-from .mltb_client import TgClient
+from .telegram_manager import TgClient
 
 
 def add_handlers():

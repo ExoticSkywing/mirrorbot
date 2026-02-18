@@ -49,6 +49,8 @@ def direct_link_generator(link):
         return osdn(link)
     elif "github.com" in domain:
         return github(link)
+    elif "transfer.it" in domain:
+        return transfer_it(link)
     elif "hxfile.co" in domain:
         return hxfile(link)
     elif "1drv.ms" in domain:
@@ -227,6 +229,14 @@ def get_captcha_token(session, params):
     res = session.post(f"{recaptcha_api}/reload", params=params)
     if token := findall(r'"rresp","(.*?)"', res.text):
         return token[0]
+
+
+def transfer_it(url):
+    resp = post("https://transfer-it-henna.vercel.app/post", json={"url": url})
+    if resp.status_code == 200:
+        return resp.json()["url"]
+    else:
+        raise DirectDownloadLinkException("ERROR: File Expired or File Not Found")
 
 
 def buzzheavier(url):
@@ -433,6 +443,7 @@ def mediafile(url):
     except Exception as e:
         raise DirectDownloadLinkException(f"ERROR: {str(e)}") from e
 
+
 def mediafire(url, session=None):
     if "/folder/" in url:
         return mediafireFolder(url)
@@ -493,7 +504,8 @@ def mediafire(url, session=None):
         return mediafire(final_url, session)
     session.close()
     return final_link[0]
-    
+
+
 def osdn(url):
     with create_scraper() as session:
         try:
@@ -1087,13 +1099,14 @@ def gofile(url):
             raise e
 
     def __fetch_links(session, _id, folderPath=""):
-        _url = f"https://api.gofile.io/contents/{_id}?wt=4fd6sg89d7s6&cache=true"
+        _url = f"https://api.gofile.io/contents/{_id}?cache=true"
         headers = {
             "User-Agent": user_agent,
             "Accept-Encoding": "gzip, deflate, br",
             "Accept": "*/*",
             "Connection": "keep-alive",
             "Authorization": "Bearer" + " " + token,
+            "X-Website-Token": "4fd6sg89d7s6",
         }
         if _password:
             _url += f"&password={_password}"
@@ -1150,7 +1163,7 @@ def gofile(url):
             token = __get_token(session)
         except Exception as e:
             raise DirectDownloadLinkException(f"ERROR: {e.__class__.__name__}")
-        details["header"] = [f"Cookie: accountToken={token}"]
+        details["header"] = f"Cookie: accountToken={token}"
         try:
             __fetch_links(session, _id)
         except Exception as e:
@@ -1248,12 +1261,12 @@ def mediafireFolder(url):
         except:
             return None
         return final_link
-    
+
     def __decode_url(html):
         enc_url = html.xpath('//a[@id="downloadButton"]')
         if enc_url:
-            final_link = enc_url[0].attrib.get('href')
-            scrambled = enc_url[0].attrib.get('data-scrambled-url')
+            final_link = enc_url[0].attrib.get("href")
+            scrambled = enc_url[0].attrib.get("data-scrambled-url")
             if final_link and scrambled:
                 try:
                     final_link = b64decode(scrambled).decode("utf-8")

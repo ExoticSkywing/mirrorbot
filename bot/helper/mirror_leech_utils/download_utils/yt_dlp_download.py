@@ -4,6 +4,7 @@ from re import search as re_search
 from secrets import token_urlsafe
 from yt_dlp import YoutubeDL, DownloadError
 
+
 from .... import task_dict_lock, task_dict
 from ...ext_utils.bot_utils import sync_to_async, async_to_sync
 from ...ext_utils.task_manager import check_running_tasks, stop_duplicate_check
@@ -57,6 +58,7 @@ class YoutubeDLHelper:
         self._gid = ""
         self._ext = ""
         self.is_playlist = False
+        self.keep_thumb = False
         self.opts = {
             "progress_hooks": [self._on_download_progress],
             "logger": MyLogger(self, self._listener),
@@ -129,7 +131,7 @@ class YoutubeDLHelper:
             task_dict[self._listener.mid] = YtDlpStatus(self._listener, self, self._gid)
         if not from_queue:
             await self._listener.on_download_start()
-            if self._listener.multi <= 1:
+            if self._listener.multi <= 1 and not self._listener.is_rss:
                 await send_status_message(self._listener.message)
 
     def _on_download_error(self, error):
@@ -278,6 +280,9 @@ class YoutubeDLHelper:
             else:
                 self._ext = f".{audio_format}"
 
+        if not self._listener.is_leech or self._listener.thumbnail_layout:
+            self.opts["writethumbnail"] = False
+
         if options:
             self._set_options(options)
 
@@ -289,7 +294,6 @@ class YoutubeDLHelper:
 
         base_name, ext = ospath.splitext(self._listener.name) if self._listener.name else ("", "")
 
-        # 如果仍然没有文件名（例如部分站点元数据缺失），使用通用模版，避免输出路径变成纯目录
         if not self._listener.name:
             generic_name_tmpl = "%(title,fulltitle,alt_title)s"  # yt-dlp 会自行处理占位符
             self.opts["outtmpl"] = {
@@ -342,7 +346,7 @@ class YoutubeDLHelper:
         if qual.startswith("ba/b"):
             self._listener.name = f"{base_name}{self._ext}"
 
-        if self._listener.is_leech and not self._listener.thumbnail_layout:
+        if self.opts["writethumbnail"]:
             self.opts["postprocessors"].append(
                 {
                     "format": "jpg",
@@ -422,4 +426,6 @@ class YoutubeDLHelper:
                 if isinstance(value, list):
                     self.opts[key] = lambda info, ytdl: value
             else:
+                if key == "writethumbnail" and value is True:
+                    self.keep_thumb = True
                 self.opts[key] = value
