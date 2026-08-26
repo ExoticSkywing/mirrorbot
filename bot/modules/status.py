@@ -1,6 +1,7 @@
 from psutil import cpu_percent, virtual_memory, disk_usage
 from time import time
-from asyncio import gather, iscoroutinefunction
+from asyncio import gather
+from inspect import iscoroutinefunction
 
 from .. import (
     task_dict_lock,
@@ -21,6 +22,7 @@ from ..helper.ext_utils.status_utils import (
     speed_string_to_bytes,
 )
 from ..helper.telegram_helper.bot_commands import BotCommands
+from ..helper.telegram_helper.filters import CustomFilters
 from ..helper.telegram_helper.message_utils import (
     send_message,
     delete_message,
@@ -30,6 +32,22 @@ from ..helper.telegram_helper.message_utils import (
     edit_message,
 )
 from ..helper.telegram_helper.button_build import ButtonMaker
+
+
+async def _handle_cancel(query, mid, key):
+    user_id = query.from_user.id
+    async with task_dict_lock:
+        task = task_dict.get(mid)
+    if task is None:
+        await query.answer("Task already cancelled or finished!", show_alert=True)
+        return
+    if task.listener.user_id != user_id and not await CustomFilters.sudo("", query):
+        await query.answer("Not Yours!", show_alert=True)
+        return
+    await query.answer()
+    obj = task.task()
+    await obj.cancel_task()
+    await update_status_message(key, force=True)
 
 
 @new_task
@@ -82,6 +100,23 @@ async def get_download_status(download):
 async def status_pages(_, query):
     data = query.data.split()
     key = int(data[1])
+    if data[2] == "canconf":
+        await query.answer()
+        button = ButtonMaker()
+        button.data_button("Yes", f"status {key} cancel {data[3]}", style="green")
+        button.data_button("No", f"status {key} nothing", style="red")
+        res = await send_message(
+            query.message,
+            "Are you sure you want to cancel this task?",
+            buttons=button.build_menu(2),
+        )
+        await auto_delete_message(res)
+        return
+    if data[2] == "cancel":
+        mid = int(data[3])
+        await delete_message(query.message)
+        await _handle_cancel(query, mid, key)
+        return
     await query.answer()
     if data[2] == "ref":
         await update_status_message(key, force=True)
@@ -182,3 +217,5 @@ async def status_pages(_, query):
         button = ButtonMaker()
         button.data_button("Back", f"status {data[1]} ref")
         await edit_message(message, msg, button.build_menu())
+    else:
+        await delete_message(query.message)

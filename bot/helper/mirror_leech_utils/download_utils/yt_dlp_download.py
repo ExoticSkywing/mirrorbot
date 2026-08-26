@@ -293,12 +293,43 @@ class YoutubeDLHelper:
             return
 
         base_name, ext = ospath.splitext(self._listener.name) if self._listener.name else ("", "")
+        start_path = path if self.keep_thumb else f"{path}/yt-dlp-thumb"
 
         if not self._listener.name:
-            generic_name_tmpl = "%(title,fulltitle,alt_title)s"  # yt-dlp 会自行处理占位符
+            # Let yt-dlp resolve the title when metadata did not provide a name.
+            generic_name_tmpl = "%(title,fulltitle,alt_title)s"
             self.opts["outtmpl"] = {
                 "default": f"{path}/{generic_name_tmpl}.%(ext)s",
-                "thumbnail": f"{path}/yt-dlp-thumb/{generic_name_tmpl}.%(ext)s",
+                "thumbnail": f"{start_path}/{generic_name_tmpl}.%(ext)s",
+            }
+        elif self.is_playlist:
+            self.opts["outtmpl"] = {
+                "default": f"{path}/{self._listener.name}/%(playlist_index)03d - %(title,fulltitle,alt_title)s%(season_number& |)s%(season_number&S|)s%(season_number|)02d%(episode_number&E|)s%(episode_number|)02d%(height& |)s%(height|)s%(height&p|)s%(fps|)s%(fps&fps|)s%(tbr& |)s%(tbr|)d.%(ext)s",
+                "thumbnail": f"{start_path}/%(playlist_index)03d - %(title,fulltitle,alt_title)s%(season_number& |)s%(season_number&S|)s%(season_number|)02d%(episode_number&E|)s%(episode_number|)02d%(height& |)s%(height|)s%(height&p|)s%(fps|)s%(fps&fps|)s%(tbr& |)s%(tbr|)d.%(ext)s",
+            }
+        elif "download_ranges" in options:
+            self.opts["outtmpl"] = {
+                "default": f"{path}/{base_name}/%(section_number|)s%(section_number&.|)s%(section_title|)s%(section_title&-|)s%(title,fulltitle,alt_title)s %(section_start)s to %(section_end)s.%(ext)s",
+                "thumbnail": f"{start_path}/%(section_number|)s%(section_number&.|)s%(section_title|)s%(section_title&-|)s%(title,fulltitle,alt_title)s %(section_start)s to %(section_end)s.%(ext)s",
+            }
+        elif any(
+            key in options
+            for key in [
+                "writedescription",
+                "writeinfojson",
+                "writeannotations",
+                "writedesktoplink",
+                "writewebloclink",
+                "writelink",
+                "writeurllink",
+                "writesubtitles",
+                "write_all_thumbnails",
+                "writeautomaticsub",
+            ]
+        ):
+            self.opts["outtmpl"] = {
+                "default": f"{path}/{base_name}/{self._listener.name}",
+                "thumbnail": f"{start_path}/{base_name}.%(ext)s",
             }
         else:
             trim_name = self._listener.name if self.is_playlist else base_name
@@ -310,38 +341,10 @@ class YoutubeDLHelper:
                 )
                 base_name = ospath.splitext(self._listener.name)[0]
 
-            if self.is_playlist:
-                self.opts["outtmpl"] = {
-                    "default": f"{path}/{self._listener.name}/%(title,fulltitle,alt_title)s%(season_number& |)s%(season_number&S|)s%(season_number|)02d%(episode_number&E|)s%(episode_number|)02d%(height& |)s%(height|)s%(height&p|)s%(fps|)s%(fps&fps|)s%(tbr& |)s%(tbr|)d.%(ext)s",
-                    "thumbnail": f"{path}/yt-dlp-thumb/%(title,fulltitle,alt_title)s%(season_number& |)s%(season_number&S|)s%(season_number|)02d%(episode_number&E|)s%(episode_number|)02d%(height& |)s%(height|)s%(height&p|)s%(fps|)s%(fps&fps|)s%(tbr& |)s%(tbr|)d.%(ext)s",
-                }
-            elif "download_ranges" in options:
-                self.opts["outtmpl"] = {
-                    "default": f"{path}/{base_name}/%(section_number|)s%(section_number&.|)s%(section_title|)s%(section_title&-|)s%(title,fulltitle,alt_title)s %(section_start)s to %(section_end)s.%(ext)s",
-                    "thumbnail": f"{path}/yt-dlp-thumb/%(section_number|)s%(section_number&.|)s%(section_title|)s%(section_title&-|)s%(title,fulltitle,alt_title)s %(section_start)s to %(section_end)s.%(ext)s",
-                }
-            elif any(
-                key in options
-                for key in [
-                    "writedescription",
-                    "writeinfojson",
-                    "writeannotations",
-                    "writedesktoplink",
-                    "writewebloclink",
-                    "writeurllink",
-                    "writesubtitles",
-                    "writeautomaticsub",
-                ]
-            ):
-                self.opts["outtmpl"] = {
-                    "default": f"{path}/{base_name}/{self._listener.name}",
-                    "thumbnail": f"{path}/yt-dlp-thumb/{base_name}.%(ext)s",
-                }
-            else:
-                self.opts["outtmpl"] = {
-                    "default": f"{path}/{self._listener.name}",
-                    "thumbnail": f"{path}/yt-dlp-thumb/{base_name}.%(ext)s",
-                }
+            self.opts["outtmpl"] = {
+                "default": f"{path}/{self._listener.name}",
+                "thumbnail": f"{start_path}/{base_name}.%(ext)s",
+            }
 
         if qual.startswith("ba/b"):
             self._listener.name = f"{base_name}{self._ext}"

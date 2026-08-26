@@ -2,11 +2,12 @@ from html import escape
 from psutil import virtual_memory, cpu_percent, disk_usage
 from time import time
 from asyncio import iscoroutinefunction, gather
+from pyrogram.types import InlineKeyboardButton
+from pyrogram.enums import ButtonStyle
 
 from ... import task_dict, task_dict_lock, bot_start_time, status_dict, DOWNLOAD_DIR
 from ...core.config_manager import Config
 from ..telegram_helper.button_build import ButtonMaker
-from ..telegram_helper.bot_commands import BotCommands
 
 SIZE_UNITS = ["B", "KB", "MB", "GB", "TB", "PB"]
 
@@ -174,6 +175,7 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
         status_dict[sid]["page_no"] = page_no
     start_position = (page_no - 1) * STATUS_LIMIT
 
+    task_gids = []
     for index, task in enumerate(
         tasks[start_position : STATUS_LIMIT + start_position], start=1
     ):
@@ -226,7 +228,8 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
             msg += f" | <b>Time: </b>{task.seeding_time()}"
         else:
             msg += f"\n<b>Size: </b>{task.size()}"
-        msg += f"\n<code>/{BotCommands.CancelTaskCommand[1]} {task.gid()}</code>\n\n"
+        msg += f"\n<b>Gid: </b><code>{task.gid()}</code>\n\n"
+        task_gids.append((index + start_position, task.listener.mid))
 
     if len(msg) == 0:
         if status == "All":
@@ -247,8 +250,19 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
         for label, status_value in list(STATUSES.items()):
             if status_value != status:
                 buttons.data_button(label, f"status {sid} st {status_value}")
-    buttons.data_button("♻️", f"status {sid} ref", position="header")
+    buttons.data_button("♻️", f"status {sid} ref", position="header", style="green")
     button = buttons.build_menu(8)
+    if task_gids:
+        cancel_buttons = [
+            InlineKeyboardButton(
+                text=f"{num}",
+                callback_data=f"status {sid} canconf {mid}",
+                style=ButtonStyle.DANGER
+            )
+            for num, mid in task_gids
+        ]
+        for i in range(0, len(cancel_buttons), 4):
+            button.inline_keyboard.append(cancel_buttons[i : i + 4])
     msg += f"<b>CPU:</b> {cpu_percent()}% | <b>FREE:</b> {get_readable_file_size(disk_usage(DOWNLOAD_DIR).free)}"
     msg += f"\n<b>RAM:</b> {virtual_memory().percent}% | <b>UPTIME:</b> {get_readable_time(time() - bot_start_time)}"
     return msg, button

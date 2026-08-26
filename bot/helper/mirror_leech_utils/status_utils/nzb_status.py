@@ -68,7 +68,7 @@ class SabnzbdStatus:
         self._info = await get_download(self._gid, self._info)
 
     def progress(self):
-        return f"{self._info.get('percentage', "0")}%"
+        return f"{self._info.get('percentage', '0')}%"
 
     def processed_raw(self):
         return (
